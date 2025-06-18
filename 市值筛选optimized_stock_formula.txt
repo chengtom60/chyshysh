@@ -1,0 +1,285 @@
+{================= 综合技术指标显示公式（优化版） =================}
+
+{参数设置 - 适度放宽}
+WRS:=9;        {短周期威廉}
+WRL:=18;       {长周期威廉}
+WRT:=55;       {趋势周期威廉}
+BOLLN:=20;     {布林周期}
+BOLLK:=2;      {布林倍数}
+OVERS:=25;     {超卖值 - 从20放宽到25}
+OVERB:=75;     {超买值 - 从80收紧到75}
+VOLRATIO:=1.5; {成交量放大倍数 - 从2.0降到1.5}
+ATRN:=14;      {ATR周期}
+
+{====== 威廉指标系统 ======}
+WR1:=(C-LLV(L,WRS))/(HHV(H,WRS)-LLV(L,WRS))*100;
+WR2:=(C-LLV(L,WRL))/(HHV(H,WRL)-LLV(L,WRL))*100;
+WR3:=(C-LLV(L,WRT))/(HHV(H,WRT)-LLV(L,WRT))*100;
+
+{威廉平滑线}
+ALINE:=EMA(SMA(WR1,WRS/2,1),3);
+TLINE:=EMA(3*SMA(WR3,5,1)-2*SMA(SMA(WR3,5,1),3,1),3);
+SLINE:=SMA(WR3,5,1);
+RLINE:=SMA(WR2,9,1);
+
+{威廉多空力度 - 降低要求}
+WRPOWER:=(WR1+WR2+WR3)/3;
+WRTREND:=WRPOWER>REF(WRPOWER,1);  {只要求当前值大于前一个值}
+
+{====== MACD系统 ======}
+DIF:=EMA(C,12)-EMA(C,26);
+DEA:=EMA(DIF,9);
+MACD:=(DIF-DEA)*2;
+MBULL:=DIF>DEA;  {简化条件，不要求DIF>0}
+MCROSS:=CROSS(DIF,DEA);
+MSTRONG:=MACD>REF(MACD,1);  {只要求MACD上升}
+MGOLD:=MCROSS AND DIF>-0.2;  {放宽金叉条件}
+
+{====== RSI系统 ======}
+RSI6:=SMA(MAX(C-REF(C,1),0),6,1)/SMA(ABS(C-REF(C,1)),6,1)*100;
+RSI12:=SMA(MAX(C-REF(C,1),0),12,1)/SMA(ABS(C-REF(C,1)),12,1)*100;
+RSI24:=SMA(MAX(C-REF(C,1),0),24,1)/SMA(ABS(C-REF(C,1)),24,1)*100;
+
+RSISTR:=RSI6>45 AND RSI12>45;  {降低RSI强度要求}
+RSIDIV:=RSI6<REF(RSI6,1) AND C>REF(C,1);
+RSIOVER:=RSI6>OVERB OR RSI12>OVERB;
+RSIUNDER:=RSI6<OVERS OR RSI12<OVERS;  {改为OR条件}
+
+{====== 布林线系统 ======}
+MID:=MA(C,BOLLN);
+UP:=MID+BOLLK*STD(C,BOLLN);
+DN:=MID-BOLLK*STD(C,BOLLN);
+BWIDTH:=(UP-DN)/MID*100;
+BNARROW:=BWIDTH<REF(BWIDTH,3);  {缩短观察周期}
+BBREAK:=CROSS(C,UP) OR (C>UP*0.98 AND V>MA(V,5)*VOLRATIO);  {放宽突破条件}
+BSUP:=C>DN*1.01;  {简化支撑条件}
+BSQUEEZE:=BWIDTH<5;  {放宽收缩条件}
+
+{====== 均线系统 ======}
+MA5:=MA(C,5);
+MA10:=MA(C,10);
+MA20:=MA(C,20);
+MA60:=MA(C,60);
+MA120:=MA(C,120);
+
+MABULL:=MA5>MA10 AND MA10>MA20;  {简化多头排列条件}
+MASHORT:=MA5>REF(MA5,1) OR MA10>REF(MA10,1);  {改为OR条件}
+MAMID:=MA20>REF(MA20,1) OR MA60>REF(MA60,1);  {改为OR条件}
+MAANGLE:=(MA5-REF(MA5,5))/REF(MA5,5)*100>1;  {降低角度要求}
+
+{====== 成交量系统 ======}
+VOLAVG:=MA(V,20);
+VOLUP:=V>VOLAVG*VOLRATIO;
+VOLMILD:=V>VOLAVG*1.1;  {降低温和放量要求}
+VOLSHRINK:=V<VOLAVG*0.8;  {放宽缩量条件}
+
+{====== ATR波动率 ======}
+TRUERANGE:=MAX(MAX(H-L,ABS(H-REF(C,1))),ABS(REF(C,1)-L));
+ATR:=MA(TRUERANGE,ATRN);
+ATREXPAND:=ATR>REF(ATR,3)*1.1;  {降低波动率扩张要求}
+
+{====== 趋势判断系统 ======}
+TSHORT:=MASHORT AND WRTREND;
+TMID:=MAMID AND (MBULL OR RSISTR);
+TSTRONG:=MABULL AND (MSTRONG OR BBREAK OR ATREXPAND);
+TWEAK:=RSIOVER OR (WR1>OVERB OR WR2>OVERB);  {改为OR条件}
+TREB:=RSIUNDER AND (CROSS(WR1,OVERS) OR VOLUP);  {改为OR条件}
+
+{====== 综合信号系统（优化版） ======}
+{基础买入信号 - 降低要求}
+BUYBASIC:=TSTRONG AND BSUP;  {移除RSI背离限制}
+
+{反弹买入信号 - 放宽条件}
+BUYREBOUND:=TREB AND (BSQUEEZE OR MA5>MA20);  {改为OR条件}
+
+{突破买入信号 - 适度放宽}
+BUYBREAKOUT:=BBREAK AND MGOLD AND VOLMILD;  {降低成交量要求}
+
+{新增：温和买入信号}
+BUYMILD:=MASHORT AND MBULL AND VOLMILD AND RSI6>40 AND WR1>30;
+
+{组合买入信号}
+BUYSIG:=BUYBASIC OR BUYREBOUND OR BUYBREAKOUT OR BUYMILD;
+
+{卖出信号 - 保持相对严格}
+SELLPROFIT:=BBREAK AND RSIDIV AND WR1>OVERB;
+SELLRISK:=TWEAK AND VOLSHRINK AND C<MA10;
+SELLBREAK:=CROSS(MA10,MA5) AND RSI6<45;  {适度放宽}
+SELLSIG:=SELLPROFIT OR SELLRISK OR SELLBREAK;
+
+{信号强度评级}
+SIGNALPOWER:=IF(BUYBASIC,4,IF(BUYBREAKOUT,3,IF(BUYREBOUND,2,IF(BUYMILD,1,0))));
+
+{====== 选股条件（新增） ======}
+{主选股条件 - 多重选择}
+选股A:=BUYBASIC OR BUYBREAKOUT;  {强势选股}
+选股B:=BUYMILD AND MA5>MA10 AND RSI6>45;  {温和选股}
+选股C:=BUYREBOUND AND C>MA20;  {反弹选股}
+
+{综合选股}
+选股信号:=选股A OR 选股B OR 选股C;
+
+{====== 主图显示 ======}
+{布林线}
+布林上轨:UP,COLOR00FFFF,LINETHICK1;
+布林中轨:MID,COLORYELLOW,LINETHICK1;
+布林下轨:DN,COLOR00FFFF,LINETHICK1;
+
+{关键均线}
+MA5,COLORWHITE,LINETHICK1;
+MA10,COLORYELLOW,LINETHICK1;
+MA20,COLORMAGENTA,LINETHICK2;
+MA60,COLORGREEN,LINETHICK2;
+
+{====== 买卖信号标记 ======}
+DRAWTEXT(BUYSIG AND SIGNALPOWER=4,L*0.96,'●超强'),COLORRED;
+DRAWTEXT(BUYSIG AND SIGNALPOWER=3,L*0.97,'▲突破'),COLORYELLOW;
+DRAWTEXT(BUYSIG AND SIGNALPOWER=2,L*0.98,'◆反弹'),COLORGREEN;
+DRAWTEXT(BUYSIG AND SIGNALPOWER=1,L*0.99,'◇温和'),COLORWHITE;
+DRAWTEXT(SELLSIG,H*1.03,'●卖出'),COLORBLUE;
+
+{信号图标}
+DRAWICON(BUYSIG AND SIGNALPOWER=4,L*0.95,1);
+DRAWICON(BUYSIG AND SIGNALPOWER=3,L*0.96,1);
+DRAWICON(BUYSIG AND SIGNALPOWER=2,L*0.97,9);
+DRAWICON(BUYSIG AND SIGNALPOWER=1,L*0.98,9);
+DRAWICON(SELLSIG,H*1.02,2);
+
+{====== 选股结果显示 ======}
+DRAWTEXT_FIX(选股信号,0.02,0.02,0,'★入选'),COLORRED;
+DRAWTEXT_FIX(选股A,0.10,0.02,0,'强势'),COLORRED;
+DRAWTEXT_FIX(选股B,0.16,0.02,0,'温和'),COLORYELLOW;
+DRAWTEXT_FIX(选股C,0.22,0.02,0,'反弹'),COLORGREEN;
+
+{====== 趋势背景着色 ======}
+{多头趋势背景}
+STICKLINE(MABULL AND VOLUP,H,L,0,0),COLORRED;
+{空头风险背景}
+STICKLINE(TWEAK AND VOLSHRINK,H,L,0,0),COLORGREEN;
+{横盘整理背景}
+STICKLINE(BSQUEEZE,H,L,0,0),COLORYELLOW;
+
+{====== K线增强显示 ======}
+{强买信号K线加粗}
+STICKLINE(BUYSIG AND SIGNALPOWER>=3 AND C>O,O,C,8,0),COLORRED;
+STICKLINE(BUYSIG AND SIGNALPOWER>=3 AND C>O,H,L,1,0),COLORRED;
+STICKLINE(BUYSIG AND SIGNALPOWER>=3 AND C<=O,O,C,8,0),COLORGREEN;
+STICKLINE(BUYSIG AND SIGNALPOWER>=3 AND C<=O,H,L,1,0),COLORGREEN;
+
+{温和买信号K线标记}
+STICKLINE(BUYSIG AND SIGNALPOWER=1 AND C>O,O,C,5,0),COLORYELLOW;
+STICKLINE(BUYSIG AND SIGNALPOWER=1 AND C>O,H,L,1,0),COLORYELLOW;
+STICKLINE(BUYSIG AND SIGNALPOWER=1 AND C<=O,O,C,5,0),COLORYELLOW;
+STICKLINE(BUYSIG AND SIGNALPOWER=1 AND C<=O,H,L,1,0),COLORYELLOW;
+
+{卖出信号K线标记}
+STICKLINE(SELLSIG AND C>O,O,C,6,0),COLORBLUE;
+STICKLINE(SELLSIG AND C>O,H,L,1,0),COLORBLUE;
+STICKLINE(SELLSIG AND C<=O,O,C,6,0),COLORBLUE;
+STICKLINE(SELLSIG AND C<=O,H,L,1,0),COLORBLUE;
+
+{普通K线}
+STICKLINE(BUYSIG=0 AND SELLSIG=0 AND C>O,O,C,3,0),COLORRED;
+STICKLINE(BUYSIG=0 AND SELLSIG=0 AND C>O,H,L,1,0),COLORRED;
+STICKLINE(BUYSIG=0 AND SELLSIG=0 AND C<=O,O,C,3,0),COLORGREEN;
+STICKLINE(BUYSIG=0 AND SELLSIG=0 AND C<=O,H,L,1,0),COLORGREEN;
+
+{====== 文字说明 ======}
+DRAWTEXT_FIX(1,0.02,0.95,0,'●超强=多重强势确认'),COLORRED;
+DRAWTEXT_FIX(1,0.02,0.92,0,'▲突破=量价配合突破'),COLORYELLOW;
+DRAWTEXT_FIX(1,0.02,0.89,0,'◆反弹=超卖技术反弹'),COLORGREEN;
+DRAWTEXT_FIX(1,0.02,0.86,0,'◇温和=趋势向好信号'),COLORWHITE;
+DRAWTEXT_FIX(1,0.02,0.83,0,'●卖出=风险规避信号'),COLORBLUE;
+
+{市值策略说明}
+DRAWTEXT_FIX(1,0.02,0.78,0,'当前市值策略:均衡投资(中大盘)'),COLORWHITE;
+DRAWTEXT_FIX(1,0.02,0.75,0,'市值范围:50-1000亿'),COLORCYAN;
+
+{====== 动态评分显示 ======}
+当前评分:SIGNALPOWER*15+WRPOWER/4,NODRAW;
+DRAWTEXT_FIX(SIGNALPOWER>0,0.80,0.95,0,STRCAT('评分:',CON2STR(当前评分,0))),COLORWHITE;
+
+{====== 股票代码筛选 ======}
+{获取股票代码并判断是否为6字开头}
+股票代码:=CODE;
+代码筛选:=股票代码>=600000 AND 股票代码<=699999;  {6字开头的A股}
+
+{====== 市值筛选设置 ======}
+{市值计算：总股本 × 收盘价}
+总股本:=CAPITAL;  {总股本(万股)}
+流通股本:=FINANCE(7);  {流通股本(万股)}
+总市值:=CAPITAL*C/10000;  {总市值(亿元)}
+流通市值:=FINANCE(7)*C/10000;  {流通市值(亿元)}
+
+{市值分类标准}
+超大盘:=总市值>=1000;  {总市值1000亿以上}
+大盘股:=总市值>=200 AND 总市值<1000;  {200-1000亿}
+中盘股:=总市值>=50 AND 总市值<200;  {50-200亿}
+小盘股:=总市值>=20 AND 总市值<50;  {20-50亿}
+微盘股:=总市值>0 AND 总市值<20;  {20亿以下}
+
+{流通市值分类}
+流通超大:=流通市值>=500;  {流通市值500亿以上}
+流通大盘:=流通市值>=100 AND 流通市值<500;  {100-500亿}
+流通中盘:=流通市值>=30 AND 流通市值<100;  {30-100亿}
+流通小盘:=流通市值>=10 AND 流通市值<30;  {10-30亿}
+流通微盘:=流通市值>0 AND 流通市值<10;  {10亿以下}
+
+{====== 市值筛选策略 ======}
+{策略一：稳健投资（大盘股为主）}
+稳健市值:=大盘股 OR 超大盘;
+
+{策略二：成长投资（中小盘股）}
+成长市值:=中盘股 OR 小盘股;
+
+{策略三：激进投资（小微盘股）}
+激进市值:=小盘股 OR 微盘股;
+
+{策略四：均衡投资（中大盘股）}
+均衡市值:=中盘股 OR 大盘股;
+
+{策略五：自定义市值范围}
+自定义市值:=总市值>=30 AND 总市值<=300;  {30-300亿，可自行调整}
+
+{====== 当前选用的市值策略 ======}
+{请根据需要选择其中一种策略，注释掉其他的}
+市值筛选:=均衡市值;  {当前使用均衡策略，可修改}
+{市值筛选:=稳健市值;}  {稳健策略}
+{市值筛选:=成长市值;}  {成长策略}
+{市值筛选:=激进市值;}  {激进策略}
+{市值筛选:=自定义市值;}  {自定义策略}
+{市值筛选:=1;}  {不限制市值，选择所有}
+
+{====== 板块细分筛选（可选） ======}
+{如果需要更精确的筛选，可以启用以下条件}
+沪市主板:=股票代码>=600000 AND 股票代码<=603999;  {沪市主板}
+沪市科创板:=股票代码>=688000 AND 股票代码<=688999;  {科创板}
+沪市其他:=股票代码>=605000 AND 股票代码<=699999;  {其他沪市股票}
+
+{综合代码筛选（包含所有6字开头）}
+A股6字筛选:=代码筛选 AND 市值筛选;
+
+{====== 最终选股条件 ======}
+{只有6字开头的A股才会被选中}
+选股结果:=选股信号 AND A股6字筛选;
+
+{====== 选股结果显示 ======}
+DRAWTEXT_FIX(选股结果,0.02,0.02,0,'★入选(6字头)'),COLORRED;
+DRAWTEXT_FIX(选股A AND A股6字筛选,0.12,0.02,0,'强势'),COLORRED;
+DRAWTEXT_FIX(选股B AND A股6字筛选,0.18,0.02,0,'温和'),COLORYELLOW;  
+DRAWTEXT_FIX(选股C AND A股6字筛选,0.24,0.02,0,'反弹'),COLORGREEN;
+
+{显示股票代码和市值信息}
+DRAWTEXT_FIX(A股6字筛选,0.60,0.02,0,STRCAT('代码:',CON2STR(股票代码,0))),COLORWHITE;
+DRAWTEXT_FIX(A股6字筛选,0.02,0.06,0,STRCAT('总市值:',CON2STR(总市值,1),'亿')),COLORCYAN;
+DRAWTEXT_FIX(A股6字筛选,0.16,0.06,0,STRCAT('流通:',CON2STR(流通市值,1),'亿')),COLORCYAN;
+
+{市值分类标识}
+DRAWTEXT_FIX(超大盘 AND A股6字筛选,0.30,0.06,0,'超大盘'),COLORRED;
+DRAWTEXT_FIX(大盘股 AND A股6字筛选,0.30,0.06,0,'大盘股'),COLORYELLOW;
+DRAWTEXT_FIX(中盘股 AND A股6字筛选,0.30,0.06,0,'中盘股'),COLORGREEN;
+DRAWTEXT_FIX(小盘股 AND A股6字筛选,0.30,0.06,0,'小盘股'),COLORCYAN;
+DRAWTEXT_FIX(微盘股 AND A股6字筛选,0.30,0.06,0,'微盘股'),COLORMAGENTA;
+
+{====== 选股输出 ======}
+XG:选股结果;  {只输出6字开头A股的选股信号}
